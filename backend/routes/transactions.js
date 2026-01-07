@@ -81,6 +81,53 @@ const updateBudgetSpent = async (userId, transaction, isDelete = false, oldAmoun
   }
 };
 
+
+const updateUserNetBalance = async (userId, amount, type, isDelete = false, oldAmount = null, oldType = null) => {
+  try {
+    const User = require('../models/User'); // Import User model
+    
+    // For update operations, we need to reverse old transaction first
+    if (oldAmount && oldType) {
+      if (oldType === 'income') {
+        amount = -oldAmount; // Reverse old income
+      } else if (oldType === 'expense') {
+        amount = oldAmount; // Reverse old expense (add it back)
+      }
+    }
+    
+    // Calculate the net balance change
+    let balanceChange = 0;
+    if (isDelete) {
+      // For delete: reverse the transaction
+      if (type === 'income') {
+        balanceChange = -amount;
+      } else if (type === 'expense') {
+        balanceChange = amount; // Add back the expense
+      }
+    } else {
+      // For create/update: apply the transaction
+      if (type === 'income') {
+        balanceChange = amount;
+      } else if (type === 'expense') {
+        balanceChange = -amount;
+      }
+    }
+    
+    // Update user's net balance
+    await User.findByIdAndUpdate(
+      userId,
+      { 
+        $inc: { netBalance: balanceChange },
+        $set: { updatedAt: Date.now() }
+      }
+    );
+    
+  } catch (error) {
+    console.error('Error updating user net balance:', error);
+    throw error;
+  }
+};
+
 // Get all transactions for the logged-in user (in PKR)
 router.get('/', auth, async (req, res) => {
   try {
@@ -135,6 +182,9 @@ router.post('/', auth, [
     const transaction = new Transaction(transactionData);
     await transaction.save();
     
+    // Update user net balance
+    await updateUserNetBalance(req.user._id, transaction.amount, transaction.type);
+    
     // Update budget if this is an expense
     if (transaction.type === 'expense') {
       await updateBudgetSpent(req.user._id, transaction);
@@ -164,6 +214,21 @@ router.put('/:id', auth, [
     
     if (!oldTransaction) {
       return res.status(404).json({ error: 'Transaction not found' });
+    }
+    
+    // Update user net balance (reverse old transaction first, then apply new)
+    if (req.body.amount || req.body.type) {
+      const newAmount = req.body.amount ? parseFloat(req.body.amount) : oldTransaction.amount;
+      const newType = req.body.type || oldTransaction.type;
+      
+      await updateUserNetBalance(
+        req.user._id, 
+        newAmount, 
+        newType, 
+        false, 
+        oldTransaction.amount,
+        oldTransaction.type
+      );
     }
     
     // Update transaction
@@ -200,6 +265,7 @@ router.put('/:id', auth, [
   }
 });
 
+
 // Delete transaction
 router.delete('/:id', auth, async (req, res) => {
   try {
@@ -211,6 +277,9 @@ router.delete('/:id', auth, async (req, res) => {
     if (!transaction) {
       return res.status(404).json({ error: 'Transaction not found' });
     }
+    
+    // Update user net balance (reverse the transaction)
+    await updateUserNetBalance(req.user._id, transaction.amount, transaction.type, true);
     
     // Update budget if this was an expense
     if (transaction.type === 'expense') {
@@ -430,6 +499,7 @@ router.get('/monthly-summary', auth, async (req, res) => {
 });
 
 // GET complete financial summary (income, expense, investments) - All in PKR
+// In transactions.js - Update the complete-summary endpoint to consider investments
 router.get('/complete-summary', auth, async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -440,6 +510,11 @@ router.get('/complete-summary', auth, async (req, res) => {
       if (startDate) matchQuery.date.$gte = new Date(startDate);
       if (endDate) matchQuery.date.$lte = new Date(endDate);
     }
+    
+    // Get user's current netBalance directly from User model
+    const User = require('../models/User');
+    const user = await User.findById(req.user._id);
+    const currentNetBalance = user?.netBalance || 0;
     
     // Get transaction summary (all amounts in PKR)
     const transactionSummary = await Transaction.aggregate([
@@ -455,7 +530,6 @@ router.get('/complete-summary', auth, async (req, res) => {
     
     const income = transactionSummary.find(s => s._id === 'income')?.total || 0;
     const expense = transactionSummary.find(s => s._id === 'expense')?.total || 0;
-    const transactionNetBalance = income - expense;
     
     // Get investment summary (all converted to PKR)
     const Investment = require('../models/Investment');
@@ -478,7 +552,7 @@ router.get('/complete-summary', auth, async (req, res) => {
     }
     
     // Calculate net balance including investments
-    const netBalanceWithInvestments = transactionNetBalance + totalCurrentValuePKR;
+    const netBalanceWithInvestments = currentNetBalance + totalCurrentValuePKR;
     
     // Get budget summary
     const budgets = await Budget.find({ 
@@ -493,7 +567,7 @@ router.get('/complete-summary', auth, async (req, res) => {
       transactions: {
         income,
         expense,
-        netBalance: transactionNetBalance,
+        netBalance: currentNetBalance, // Use netBalance from user model
         currency: 'PKR',
         incomeCount: transactionSummary.find(s => s._id === 'income')?.count || 0,
         expenseCount: transactionSummary.find(s => s._id === 'expense')?.count || 0
@@ -517,13 +591,13 @@ router.get('/complete-summary', auth, async (req, res) => {
       },
       overall: {
         netWorth: netBalanceWithInvestments,
-        availableBalance: transactionNetBalance,
+        availableBalance: currentNetBalance,
         investmentValue: totalCurrentValuePKR,
         totalAssets: netBalanceWithInvestments > 0 ? netBalanceWithInvestments : 0,
         currency: 'PKR'
       },
       breakdown: {
-        availableBalance: transactionNetBalance,
+        availableBalance: currentNetBalance,
         investmentValue: totalCurrentValuePKR,
         budgetedAmount: totalMonthlyBudget
       }
@@ -533,7 +607,6 @@ router.get('/complete-summary', auth, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // GET transaction analytics (in PKR)
 router.get('/analytics', auth, async (req, res) => {
   try {

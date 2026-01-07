@@ -23,7 +23,6 @@ import AddInvestmentModal from '../components/investments/AddInvestmentModal';
 import InvestmentDetailsModal from '../components/investments/InvestmentDetailsModal';
 import SellInvestmentModal from '../components/investments/SellInvestmentModal';
 import PortfolioChart from '../components/investments/PortfolioChart';
-import PerformanceChart from '../components/investments/PerformanceChart';
 import AllocationChart from '../components/investments/AllocationChart';
 
 const Investments = () => {

@@ -10,11 +10,11 @@ export const useAuth = () => {
   }
   return context;
 };
-// Updated AuthProvider component
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true); // Start with loading true
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -23,21 +23,22 @@ export const AuthProvider = ({ children }) => {
 
       if (storedToken && storedUser) {
         try {
-          // Verify token is still valid by making a test API call
           axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
           
-          // Optional: Verify token by calling /api/auth/me
+          // Make API call to verify token
           const response = await axios.get('http://localhost:5000/api/auth/me', {
-            timeout: 5000 // 5 second timeout
+            timeout: 5000
           });
           
-          if (response.data.success) {
+          console.log('Auth initialization response:', response.data); // Debug log
+          
+          if (response.data.user) { // Changed from response.data.success
             setToken(storedToken);
-            setUser(response.data.user); // Use fresh user data from server
-            // Update localStorage with fresh user data
+            setUser(response.data.user);
             localStorage.setItem('user', JSON.stringify(response.data.user));
           } else {
-            throw new Error('Invalid token');
+            console.warn('No user data in response');
+            throw new Error('No user data');
           }
         } catch (error) {
           console.error('Auth initialization error:', error);
@@ -76,7 +77,6 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       delete axios.defaults.headers.common['Authorization'];
-      // Force a page reload to clear any cached state
       window.location.href = '/login';
     }
   };
@@ -87,14 +87,30 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('user', JSON.stringify(updatedUser));
   };
 
+  // Add a refreshUser function to fetch latest user data
+  const refreshUser = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/auth/me');
+      if (response.data.user) {
+        setUser(response.data.user);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        return response.data.user;
+      }
+    } catch (error) {
+      console.error('Error refreshing user:', error);
+      throw error;
+    }
+  };
+
   const value = {
     user,
     token,
     login,
     logout,
     updateUser,
+    refreshUser, // Add this
     isAuthenticated: !!user && !!token,
-    loading // Expose loading state
+    loading
   };
 
   return (

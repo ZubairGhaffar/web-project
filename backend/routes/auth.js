@@ -122,23 +122,53 @@ router.post('/login', [
 });
 
 // Get current user profile
+// router.get('/me', auth, async (req, res) => {
+//   try {
+//     res.json({
+//       success: true,
+//       user: {
+//         id: req.user._id,
+//         name: req.user.name,
+//         email: req.user.email,
+//         monthlyIncome: req.user.monthlyIncome,
+//         currency: req.user.currency,
+//         netBalance: req.user.netBalance,
+//         profileImage: req.user.profileImage,
+//         createdAt: req.user.createdAt
+//       }
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ error: 'Server error' });
+//   }
+// });
+
+// In your auth route (auth.js)
+// In your auth route (auth.js)
 router.get('/me', auth, async (req, res) => {
   try {
-    res.json({
-      success: true,
-      user: {
-        id: req.user._id,
-        name: req.user.name,
-        email: req.user.email,
-        monthlyIncome: req.user.monthlyIncome,
-        currency: req.user.currency,
-        profileImage: req.user.profileImage,
-        createdAt: req.user.createdAt
-      }
-    });
+    const user = await User.findById(req.user._id).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const userResponse = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      monthlyIncome: user.monthlyIncome || 0,
+      netBalance: user.netBalance || 0,
+      currency: user.currency || 'PKR',
+      profileImage: user.profileImage || '',
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
+    
+    // Return { user: userResponse } instead of { success: true, user: userResponse }
+    res.json({ user: userResponse });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error fetching user data:', error);
+    res.status(500).json({ error: 'Error fetching user data' });
   }
 });
 

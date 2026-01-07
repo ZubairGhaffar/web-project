@@ -226,6 +226,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // POST create new investment (in PKR)
+// In investments.js route
 router.post('/', auth, validateInvestment, async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -237,6 +238,26 @@ router.post('/', auth, validateInvestment, async (req, res) => {
 
   try {
     const userCurrency = 'PKR';
+    const User = require('../models/User'); // Import User model
+    
+    // Get current user to check netBalance
+    const user = await User.findById(req.user._id);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    // Check if user has enough balance
+    const investedAmount = parseFloat(req.body.investedAmount);
+    if (user.netBalance < investedAmount) {
+      return res.status(400).json({
+        success: false,
+        error: `Insufficient balance. Available: ₨${user.netBalance.toLocaleString()}, Required: ₨${investedAmount.toLocaleString()}`
+      });
+    }
     
     // Get current exchange rate
     const exchangeRate = await currencyService.convert(1, 'USD', 'PKR');
@@ -264,21 +285,26 @@ router.post('/', auth, validateInvestment, async (req, res) => {
     }
 
     const investmentData = {
-  ...req.body,
-  userId: req.user._id,
-  assetType: 'crypto',
-  coinName: selectedCoin.name,
-  symbol: selectedCoin.symbol,
-  originalCurrency: 'PKR', // Always PKR
-  exchangeRate: exchangeRate,
-  purchasePriceUSD: currentPriceUSD,
-  purchasePriceLocal: (req.body.investedAmount / req.body.quantity),
-  purchaseDate: req.body.purchaseDate ? new Date(req.body.purchaseDate) : new Date(),
-  status: 'active'
-};
+      ...req.body,
+      userId: req.user._id,
+      assetType: 'crypto',
+      coinName: selectedCoin.name,
+      symbol: selectedCoin.symbol,
+      originalCurrency: 'PKR', // Always PKR
+      exchangeRate: exchangeRate,
+      purchasePriceUSD: currentPriceUSD,
+      purchasePriceLocal: (req.body.investedAmount / req.body.quantity),
+      purchaseDate: req.body.purchaseDate ? new Date(req.body.purchaseDate) : new Date(),
+      status: 'active'
+    };
 
     const investment = new Investment(investmentData);
     await investment.save();
+
+    // Deduct invested amount from user's netBalance
+    user.netBalance -= investedAmount;
+    user.updatedAt = Date.now();
+    await user.save();
 
     // Enrich with current market data
     const enrichedInvestment = (await coinService.enrichInvestments([investment], userCurrency))[0];
@@ -287,7 +313,8 @@ router.post('/', auth, validateInvestment, async (req, res) => {
       success: true,
       message: 'Investment added successfully',
       investment: enrichedInvestment,
-      exchangeRate: exchangeRate
+      exchangeRate: exchangeRate,
+      newNetBalance: user.netBalance
     });
   } catch (error) {
     console.error('Create investment error:', error);
@@ -307,6 +334,7 @@ router.post('/', auth, validateInvestment, async (req, res) => {
 });
 
 // POST sell investment (partial or full)
+// In investments.js route - POST sell endpoint
 router.post('/:id/sell', auth, validateSell, async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -330,7 +358,17 @@ router.post('/:id/sell', auth, validateSell, async (req, res) => {
       });
     }
 
-    const userCurrency =  'PKR';
+    const User = require('../models/User'); // Import User model
+    const user = await User.findById(req.user._id);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    const userCurrency = 'PKR';
     const { sellQuantity, sellPriceLocal, sellDate } = req.body;
     
     // Validate sell quantity
@@ -374,6 +412,11 @@ router.post('/:id/sell', auth, validateSell, async (req, res) => {
 
     await investment.save();
 
+    // Add sold amount back to user's netBalance
+    user.netBalance += soldAmountLocal;
+    user.updatedAt = Date.now();
+    await user.save();
+
     // Enrich with current market data
     const enrichedInvestment = (await coinService.enrichInvestments([investment], userCurrency))[0];
 
@@ -388,7 +431,8 @@ router.post('/:id/sell', auth, validateSell, async (req, res) => {
         realizedProfitLossLocal: realizedProfitLossLocal,
         realizedProfitLossUSD: realizedProfitLossUSD,
         realizedProfitLossPercentage: realizedProfitLossPercentage
-      }
+      },
+      newNetBalance: user.netBalance
     });
   } catch (error) {
     console.error('Sell investment error:', error);
@@ -400,9 +444,10 @@ router.post('/:id/sell', auth, validateSell, async (req, res) => {
 });
 
 // DELETE investment
+// In investments.js route - DELETE endpoint
 router.delete('/:id', auth, async (req, res) => {
   try {
-    const investment = await Investment.findOneAndDelete({
+    const investment = await Investment.findOne({
       _id: req.params.id,
       userId: req.user._id
     });
@@ -414,9 +459,26 @@ router.delete('/:id', auth, async (req, res) => {
       });
     }
 
+    // Only refund if investment is active/partial and not sold
+    if (investment.status === 'active' || investment.status === 'partial') {
+      const User = require('../models/User');
+      const user = await User.findById(req.user._id);
+      
+      if (user) {
+        // Add the remaining invested amount back to user's netBalance
+        user.netBalance += investment.investedAmount;
+        user.updatedAt = Date.now();
+        await user.save();
+      }
+    }
+
+    // Delete the investment
+    await Investment.findByIdAndDelete(req.params.id);
+
     res.json({
       success: true,
-      message: 'Investment deleted successfully'
+      message: 'Investment deleted successfully',
+      refundedAmount: (investment.status === 'active' || investment.status === 'partial') ? investment.investedAmount : 0
     });
   } catch (error) {
     console.error('Delete investment error:', error);

@@ -9,7 +9,8 @@ import {
   FaArrowDown,
   FaMoneyBillWave,
   FaShoppingCart,
-  FaSync
+  FaSync,
+  FaUser
 } from 'react-icons/fa';
 import { PieChart as RePieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
@@ -33,15 +34,43 @@ const Dashboard = () => {
     loading: false,
     error: null
   });
+
+  const [userData, setUserData] = useState({
+    monthlyIncome: 0,
+    netBalance: 0,
+    currency: 'PKR'
+  });
   
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
 
   useEffect(() => {
     if (user) {
       fetchDashboardData();
     }
   }, [user]);
+
+  const fetchUserData = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (response.data.user) {
+        const userData = response.data.user;
+        console.log('User data fetched:', userData); // Debug log
+        setUserData({
+          monthlyIncome: userData.monthlyIncome || 0,
+          netBalance: userData.netBalance || 0,
+          currency: userData.currency || 'PKR'
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    }
+  };
 
   const fetchInvestmentSummary = async () => {
     try {
@@ -50,7 +79,6 @@ const Dashboard = () => {
       
       if (response.data.success) {
         const summaryData = response.data.summary;
-        console.log('Investment Summary Data:', summaryData); // Debug log
         
         setInvestmentSummary({
           totalInvested: summaryData.totalInvested || 0,
@@ -62,10 +90,8 @@ const Dashboard = () => {
           error: null
         });
         
-        // If you need current prices in dashboard too
         const coinIds = summaryData?.coinBreakdown?.map(c => c.coinId) || [];
         if (coinIds.length > 0) {
-          // Fetch batch prices for dashboard if needed
           await axios.post('http://localhost:5000/api/investments/prices/batch', {
             coinIds
           });
@@ -91,14 +117,34 @@ const Dashboard = () => {
     try {
       setLoading(true);
       
-      // Fetch all data in parallel
-      const [summaryRes, categoriesRes] = await Promise.all([
+      // Fetch all data in parallel including user data
+      const [userRes, summaryRes, categoriesRes] = await Promise.all([
+        axios.get('http://localhost:5000/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }),
         axios.get('http://localhost:5000/api/transactions/summary'),
-        axios.get('http://localhost:5000/api/transactions/categories?type=expense'),
-        fetchInvestmentSummary() // Call investment summary
+        axios.get('http://localhost:5000/api/transactions/categories?type=expense')
       ]);
 
+      console.log('User response:', userRes.data); // Debug log
+      console.log('User netBalance from API:', userRes.data.user?.netBalance); // Debug log
+
+      // Update user data with netBalance from database
+      if (userRes.data.user) {
+        setUserData({
+          monthlyIncome: userRes.data.user.monthlyIncome || 0,
+          netBalance: userRes.data.user.netBalance || 0,
+          currency: userRes.data.user.currency || 'PKR'
+        });
+      }
+
       setSummary(summaryRes.data);
+      
+      // Fetch investment summary separately
+      await fetchInvestmentSummary();
+      
       setLoading(false);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -108,9 +154,13 @@ const Dashboard = () => {
 
   const refreshData = async () => {
     await fetchDashboardData();
+    if (refreshUser) {
+      await refreshUser();
+    }
   };
 
-  const netBalanceWithInvestments = (summary.income - summary.expense) + investmentSummary.totalCurrentValue;
+  // Calculate net worth including investments
+  const netBalanceWithInvestments = (userData.netBalance || 0) + (investmentSummary.totalCurrentValue || 0);
 
   if (loading) {
     return (
@@ -132,7 +182,7 @@ const Dashboard = () => {
             </div>
           ) : (
             <p className={`text-2xl font-bold mt-2 ${color}`}>
-              {prefix}{typeof value === 'number' ? value.toLocaleString() : value}{suffix}
+              {prefix}{typeof value === 'number' ? value.toLocaleString() : '0'}{suffix}
             </p>
           )}
         </div>
@@ -158,9 +208,9 @@ const Dashboard = () => {
     value: item.total
   })) || [];
 
-  // Calculate savings rate
+  // Calculate savings rate based on user's net balance
   const savingsRate = summary.income > 0 
-    ? ((summary.netBalance / summary.income) * 100).toFixed(1)
+    ? (((userData.netBalance || 0) / summary.income) * 100).toFixed(1)
     : 0;
 
   return (
@@ -169,12 +219,22 @@ const Dashboard = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Welcome back, {user?.name}!</h1>
           <p className="text-gray-600">Here's your financial overview</p>
-          {user?.monthlyIncome > 0 && (
-            <div className="mt-2 inline-flex items-center px-4 py-2 bg-blue-50 text-blue-700 rounded-lg">
-              <FaDollarSign className="mr-2" />
-              Monthly Income: ₨ {user.monthlyIncome.toLocaleString()}
+          <div className="flex items-center gap-4 mt-2">
+            {userData.monthlyIncome > 0 && (
+              <div className="inline-flex items-center px-4 py-2 bg-blue-50 text-blue-700 rounded-lg">
+                <FaDollarSign className="mr-2" />
+                Monthly Income: ₨ {(userData.monthlyIncome || 0).toLocaleString()}
+              </div>
+            )}
+            
+            {/* Display Net Balance from user model */}
+            <div className={`inline-flex items-center px-4 py-2 ${
+              (userData.netBalance || 0) >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+            } rounded-lg`}>
+              <FaUser className="mr-2" />
+              Net Balance: ₨ {(userData.netBalance || 0).toLocaleString()}
             </div>
-          )}
+          </div>
         </div>
         <button
           onClick={refreshData}
@@ -199,25 +259,28 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard 
           title="Total Balance" 
-          value={summary.netBalance} 
+          value={userData.netBalance || 0}
           icon={<FaDollarSign className="text-blue-600 w-6 h-6" />}
           color="text-blue-600"
-          trend={summary.income > 0 ? (summary.netBalance / summary.income * 100).toFixed(0) : 0}
+          trend={summary.income > 0 ? ((userData.netBalance || 0) / summary.income * 100).toFixed(0) : 0}
         />
+        
         <StatCard 
           title="Total Income" 
-          value={summary.income} 
+          value={summary.income || 0} 
           icon={<FaChartLine className="text-green-600 w-6 h-6" />}
           color="text-green-600"
           trend={8}
         />
+        
         <StatCard 
           title="Total Expenses" 
-          value={summary.expense} 
+          value={summary.expense || 0} 
           icon={<FaShoppingCart className="text-red-600 w-6 h-6" />}
           color="text-red-600"
           trend={-5}
         />
+        
         <StatCard 
           title="Savings Rate" 
           value={savingsRate} 
@@ -227,30 +290,31 @@ const Dashboard = () => {
           prefix=""
           suffix="%"
         />
+        
         <StatCard 
           title="Investment Value" 
-          value={investmentSummary.totalCurrentValue} 
+          value={investmentSummary.totalCurrentValue || 0} 
           icon={<FaChartLine className="text-purple-600 w-6 h-6" />}
           color="text-purple-600"
-          trend={investmentSummary.totalProfitLossPercentage}
+          trend={investmentSummary.totalProfitLossPercentage || 0}
           loading={investmentSummary.loading}
         />
 
         <StatCard 
           title="Investment P&L" 
-          value={investmentSummary.totalProfitLoss} 
+          value={investmentSummary.totalProfitLoss || 0} 
           icon={investmentSummary.totalProfitLoss >= 0 ? 
             <FaArrowUp className="text-green-600 w-6 h-6" /> : 
             <FaArrowDown className="text-red-600 w-6 h-6" />
           }
           color={investmentSummary.totalProfitLoss >= 0 ? "text-green-600" : "text-red-600"}
-          trend={investmentSummary.totalProfitLossPercentage}
+          trend={investmentSummary.totalProfitLossPercentage || 0}
           loading={investmentSummary.loading}
         />
         
         <StatCard 
           title="Invested Amount" 
-          value={investmentSummary.totalInvested} 
+          value={investmentSummary.totalInvested || 0} 
           icon={<FaMoneyBillWave className="text-indigo-600 w-6 h-6" />}
           color="text-indigo-600"
           loading={investmentSummary.loading}
@@ -258,7 +322,7 @@ const Dashboard = () => {
         
         <StatCard 
           title="Total Investments" 
-          value={investmentSummary.count} 
+          value={investmentSummary.count || 0} 
           icon={<FaChartBar className="text-yellow-600 w-6 h-6" />}
           color="text-yellow-600"
           prefix=""
@@ -271,7 +335,7 @@ const Dashboard = () => {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-blue-800">Investment Portfolio Summary</h3>
           <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-            {investmentSummary.count} Investment{investmentSummary.count !== 1 ? 's' : ''}
+            {investmentSummary.count || 0} Investment{investmentSummary.count !== 1 ? 's' : ''}
           </span>
         </div>
         
@@ -279,54 +343,54 @@ const Dashboard = () => {
           <div className="bg-white rounded-lg p-4 border border-blue-100">
             <p className="text-sm text-gray-600">Total Invested</p>
             <p className="text-xl font-bold text-indigo-700">
-              ₨ {investmentSummary.totalInvested.toLocaleString()}
+              ₨ {(investmentSummary.totalInvested || 0).toLocaleString()}
             </p>
           </div>
           
           <div className="bg-white rounded-lg p-4 border border-blue-100">
             <p className="text-sm text-gray-600">Current Value</p>
             <p className="text-xl font-bold text-purple-700">
-              ₨ {investmentSummary.totalCurrentValue.toLocaleString()}
+              ₨ {(investmentSummary.totalCurrentValue || 0).toLocaleString()}
             </p>
           </div>
           
           <div className="bg-white rounded-lg p-4 border border-blue-100">
             <p className="text-sm text-gray-600">Total P&L</p>
             <p className={`text-xl font-bold ${
-              investmentSummary.totalProfitLoss >= 0 ? 'text-green-700' : 'text-red-700'
+              (investmentSummary.totalProfitLoss || 0) >= 0 ? 'text-green-700' : 'text-red-700'
             }`}>
-              {investmentSummary.totalProfitLoss >= 0 ? '+' : ''}₨ {investmentSummary.totalProfitLoss.toLocaleString()}
+              {(investmentSummary.totalProfitLoss || 0) >= 0 ? '+' : ''}₨ {(investmentSummary.totalProfitLoss || 0).toLocaleString()}
             </p>
           </div>
           
           <div className="bg-white rounded-lg p-4 border border-blue-100">
             <p className="text-sm text-gray-600">Return %</p>
             <p className={`text-xl font-bold ${
-              investmentSummary.totalProfitLossPercentage >= 0 ? 'text-green-700' : 'text-red-700'
+              (investmentSummary.totalProfitLossPercentage || 0) >= 0 ? 'text-green-700' : 'text-red-700'
             }`}>
-              {investmentSummary.totalProfitLossPercentage >= 0 ? '+' : ''}{investmentSummary.totalProfitLossPercentage.toFixed(2)}%
+              {(investmentSummary.totalProfitLossPercentage || 0) >= 0 ? '+' : ''}{(investmentSummary.totalProfitLossPercentage || 0).toFixed(2)}%
             </p>
           </div>
         </div>
         
-        {investmentSummary.totalInvested > 0 && (
+        {(investmentSummary.totalInvested || 0) > 0 && (
           <div className="mt-4 pt-4 border-t border-blue-200">
             <div className="flex items-center justify-between">
               <span className="text-sm text-blue-700">Portfolio Performance</span>
               <span className={`text-sm font-medium ${
-                investmentSummary.totalProfitLossPercentage >= 0 ? 'text-green-700' : 'text-red-700'
+                (investmentSummary.totalProfitLossPercentage || 0) >= 0 ? 'text-green-700' : 'text-red-700'
               }`}>
-                Overall Return: {investmentSummary.totalProfitLossPercentage >= 0 ? '+' : ''}
-                {investmentSummary.totalProfitLossPercentage.toFixed(2)}%
+                Overall Return: {(investmentSummary.totalProfitLossPercentage || 0) >= 0 ? '+' : ''}
+                {(investmentSummary.totalProfitLossPercentage || 0).toFixed(2)}%
               </span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
               <div 
                 className={`h-2 rounded-full ${
-                  investmentSummary.totalProfitLossPercentage >= 0 ? 'bg-green-500' : 'bg-red-500'
+                  (investmentSummary.totalProfitLossPercentage || 0) >= 0 ? 'bg-green-500' : 'bg-red-500'
                 }`}
                 style={{ 
-                  width: `${Math.min(Math.abs(investmentSummary.totalProfitLossPercentage), 100)}%` 
+                  width: `${Math.min(Math.abs(investmentSummary.totalProfitLossPercentage || 0), 100)}%` 
                 }}
               ></div>
             </div>
@@ -420,35 +484,35 @@ const Dashboard = () => {
         <div className="bg-white rounded-xl shadow-sm p-6">
           <h3 className="text-lg font-semibold mb-4">Budget Status</h3>
           <div className="space-y-4">
-            {user?.monthlyIncome > 0 && (
+            {userData.monthlyIncome > 0 && (
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-gray-600">Monthly Spending</span>
                   <span className="text-gray-600">
-                    ₨ {summary.expense.toFixed(2)} / ₨ {user.monthlyIncome.toLocaleString()}
+                    ₨ {(summary.expense || 0).toFixed(2)} / ₨ {(userData.monthlyIncome || 0).toLocaleString()}
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full transition-all duration-500 ${
-                      (summary.expense / user.monthlyIncome) > 0.9 
+                      ((summary.expense || 0) / (userData.monthlyIncome || 1)) > 0.9 
                         ? 'bg-red-500' 
-                        : (summary.expense / user.monthlyIncome) > 0.7 
+                        : ((summary.expense || 0) / (userData.monthlyIncome || 1)) > 0.7 
                           ? 'bg-yellow-500' 
                           : 'bg-green-500'
                     }`}
                     style={{ 
-                      width: `${Math.min((summary.expense / user.monthlyIncome) * 100, 100)}%` 
+                      width: `${Math.min(((summary.expense || 0) / (userData.monthlyIncome || 1)) * 100, 100)}%` 
                     }}
                   ></div>
                 </div>
                 <p className="text-sm text-gray-500 mt-1">
-                  {((summary.expense / user.monthlyIncome) * 100).toFixed(1)}% of monthly income spent
+                  {(((summary.expense || 0) / (userData.monthlyIncome || 1)) * 100).toFixed(1)}% of monthly income spent
                 </p>
               </div>
             )}
             
-            {summary.netBalance < 0 && (
+            {(userData.netBalance || 0) < 0 && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-red-600 font-medium flex items-center">
                   <FaArrowDown className="mr-2" />
@@ -468,15 +532,15 @@ const Dashboard = () => {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <span className="text-gray-700">Available Balance:</span>
-              <span className={`text-lg font-bold ${summary.netBalance >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                ₨ {summary.netBalance.toLocaleString()}
+              <span className={`text-lg font-bold ${(userData.netBalance || 0) >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                ₨ {(userData.netBalance || 0).toLocaleString()}
               </span>
             </div>
             
             <div className="flex justify-between items-center">
               <span className="text-gray-700">Investment Value:</span>
               <span className="text-lg font-bold text-purple-700">
-                ₨ {investmentSummary.totalCurrentValue.toLocaleString()}
+                ₨ {(investmentSummary.totalCurrentValue || 0).toLocaleString()}
               </span>
             </div>
             

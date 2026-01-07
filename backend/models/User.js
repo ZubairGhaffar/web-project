@@ -23,10 +23,15 @@ const userSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
-    currency: {
+  currency: {
     type: String,
     default: 'PKR',
     enum: ['PKR']
+  },
+  netBalance: {
+    type: Number,
+    default: 0,
+    min: 0
   },
   profileImage: {
     type: String,
