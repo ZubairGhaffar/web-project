@@ -44,7 +44,7 @@ const Sidebar = () => {
             <FaChartLine className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">BudgetTracker</h1>
+            <h1 className="text-xl font-bold">Fin Safe</h1>
             <p className="text-xs text-gray-400">Personal Finance</p>
           </div>
         </div>

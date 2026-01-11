@@ -192,10 +192,10 @@ const Dashboard = () => {
       </div>
       {trend !== undefined && !loading && (
         <div className="flex items-center mt-4 text-sm">
-          {trend > 0 ? <FaArrowUp className="text-green-500 mr-1" /> : <FaArrowDown className="text-red-500 mr-1" />}
-          <span className={trend > 0 ? 'text-green-500' : 'text-red-500'}>
+          {/* {trend > 0 ? <FaArrowUp className="text-green-500 mr-1" /> : <FaArrowDown className="text-red-500 mr-1" />} */}
+          {/* <span className={trend > 0 ? 'text-green-500' : 'text-red-500'}>
             {Math.abs(trend)}% from last month
-          </span>
+          </span> */}
         </div>
       )}
     </div>

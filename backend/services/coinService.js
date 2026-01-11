@@ -5,8 +5,7 @@ const currencyService = require('./currencyService');
 class CoinService {
   constructor() {
     this.api = axios.create({
-      baseURL: 'https://api.coingecko.com/api/v3',
-      timeout: 10000
+      baseURL: 'https://api.coingecko.com/api/v3'
     });
     
     // Cache for 1 minute

@@ -112,9 +112,9 @@ const investmentSchema = new mongoose.Schema({
 });
 
 // Indexes for faster queries
-investmentSchema.index({ userId: 1, coinId: 1 });
-investmentSchema.index({ userId: 1, purchaseDate: -1 });
-investmentSchema.index({ userId: 1, status: 1 });
+// investmentSchema.index({ userId: 1, coinId: 1 });
+// investmentSchema.index({ userId: 1, purchaseDate: -1 });
+// investmentSchema.index({ userId: 1, status: 1 });
 
 // Virtual for current value in USD (will be populated by service)
 investmentSchema.virtual('currentValueUSD').get(function() {
