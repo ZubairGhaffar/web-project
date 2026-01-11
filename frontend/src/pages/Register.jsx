@@ -103,19 +103,26 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mb-4">
-              <FaUserPlus className="text-white text-2xl" />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900">Create Account</h1>
-            <p className="text-gray-600 mt-2">Join us and manage your finances</p>
-          </div>
-          
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col items-center justify-center p-4">
+      {/* FIN SAFE Header */}
+      <div className="mb-8 text-center">
+        <h1 className="text-4xl font-bold text-primary-700 mb-2">
+          <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            FIN SAFE
+          </span>
+        </h1>
+        <p className="text-gray-600">Smart Budget Tracking & Financial Management</p>
+      </div>
+      
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white text-center">
+          <h2 className="text-2xl font-bold">Create Account</h2>
+          <p className="text-blue-100 mt-1">Join FIN SAFE and manage your finances</p>
+        </div>
+        
+        <div className="p-8">
           {errors.general && (
-            <div className="mb-6 p-3 bg-red-50 border border-red-100 rounded-lg">
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-red-600 text-sm text-center">{errors.general}</p>
             </div>
           )}
@@ -134,7 +141,7 @@ const Register = () => {
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${
+                  className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
                     errors.name 
                       ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
                       : 'border-gray-300 hover:border-gray-400'
@@ -165,7 +172,7 @@ const Register = () => {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${
+                  className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
                     errors.email 
                       ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
                       : 'border-gray-300 hover:border-gray-400'
@@ -197,7 +204,7 @@ const Register = () => {
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${
+                    className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
                       errors.password 
                         ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
                         : 'border-gray-300 hover:border-gray-400'
@@ -228,7 +235,7 @@ const Register = () => {
                     name="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${
+                    className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
                       errors.confirmPassword 
                         ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
                         : 'border-gray-300 hover:border-gray-400'
@@ -247,7 +254,7 @@ const Register = () => {
               </div>
             </div>
             
-            <div>
+            {/* <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Monthly Income (Optional)
               </label>
@@ -260,15 +267,16 @@ const Register = () => {
                   name="monthlyIncome"
                   value={formData.monthlyIncome}
                   onChange={handleChange}
-                  step="0.01"
-                  min="0"
-                  className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${
+                  className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
                     errors.monthlyIncome 
                       ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
                       : 'border-gray-300 hover:border-gray-400'
                   }`}
-                  placeholder="0.00"
+                  placeholder="50000"
                 />
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <span className="text-gray-500">PKR</span>
+                </div>
               </div>
               {errors.monthlyIncome && (
                 <p className="mt-1 text-sm text-red-600 flex items-center">
@@ -278,7 +286,7 @@ const Register = () => {
                   {errors.monthlyIncome}
                 </p>
               )}
-            </div>
+            </div> */}
             
             <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
               <input
@@ -302,7 +310,7 @@ const Register = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3.5 px-4 rounded-xl font-medium hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3.5 px-4 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
             >
               {loading ? (
                 <span className="flex items-center justify-center">

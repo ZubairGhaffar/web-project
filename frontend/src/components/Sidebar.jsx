@@ -91,7 +91,7 @@ const Sidebar = () => {
         {/* App Version */}
         <div className="mt-6 pt-4 border-t border-gray-800">
           <p className="text-xs text-gray-500 text-center">
-            BudgetTracker v1.0.0
+            FIN SAFE v1.0.0
           </p>
           <p className="text-xs text-gray-500 text-center mt-1">
             {user?.currency || 'USD'} • Personal Edition

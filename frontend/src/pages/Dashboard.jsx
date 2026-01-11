@@ -279,12 +279,6 @@ const fetchDashboardData = async () => {
     value: item.total
   })) || [];
 
-const savingsRate = summary.income > 0 
-  ? (((summary.income - summary.expense) / summary.income) * 100).toFixed(1)
-  : 0;
-
-// Also add this to display actual savings amount
-const savingsAmount = summary.income - summary.expense;
 
   return (
     <div>
@@ -328,41 +322,50 @@ const savingsAmount = summary.income - summary.expense;
         </div>
       )}
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-       <StatCard 
-  title="Total Balance" 
-  value={userData.netBalance || 0}
-  icon={<FaDollarSign className="text-blue-600 w-6 h-6" />}
-  color="text-blue-600"
-  trend={summary.income > 0 ? ((userData.netBalance || 0) / summary.income * 100).toFixed(0) : 0}
-/>
+     
+             {/* Stats Grid */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow-sm p-6 mb-8 border border-blue-200">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-lg font-semibold text-blue-800">Finance Summary</h1>
+        </div>          
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <StatCard 
+            title="Total Balance" 
+            value={userData.netBalance || 0}
+            icon={<FaDollarSign className="text-blue-600 w-6 h-6" />}
+            color="text-blue-600"
+            trend={summary.income > 0 ? ((userData.netBalance || 0) / summary.income * 100).toFixed(0) : 0}
+          />
+          
+          <StatCard 
+            title="Total Income" 
+            value={summary.income || 0} 
+            icon={<FaChartLine className="text-green-600 w-6 h-6" />}
+            color="text-green-600"
+            trend={8}
+          />
+          
+          <StatCard 
+            title="Total Expenses" 
+            value={summary.expense || 0} 
+            icon={<FaShoppingCart className="text-red-600 w-6 h-6" />}
+            color="text-red-600"
+            trend={-5}
+          />
+        </div>
+      </div>
+
+      {/* Investment Summary Card */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow-sm p-6 mb-8 border border-blue-200">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-blue-800">Investment Portfolio Summary</h3>
+          <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+            {investmentSummary.count || 0} Investment{investmentSummary.count !== 1 ? 's' : ''}
+          </span>
+        </div>
         
-        <StatCard 
-          title="Total Income" 
-          value={summary.income || 0} 
-          icon={<FaChartLine className="text-green-600 w-6 h-6" />}
-          color="text-green-600"
-          trend={8}
-        />
-        
-        <StatCard 
-          title="Total Expenses" 
-          value={summary.expense || 0} 
-          icon={<FaShoppingCart className="text-red-600 w-6 h-6" />}
-          color="text-red-600"
-          trend={-5}
-        />
-        
-<StatCard 
-  title="Total Savings" 
-  value={savingsAmount} 
-  icon={<FaChartLine className={`${savingsAmount >= 0 ? "text-green-600" : "text-red-600"} w-6 h-6`} />}
-  color={savingsAmount >= 0 ? "text-green-600" : "text-red-600"}
-  trend={parseFloat(savingsRate)}
-/>
-        
-        <StatCard 
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+         <StatCard 
           title="Investment Value" 
           value={investmentSummary.totalCurrentValue || 0} 
           icon={<FaChartLine className="text-purple-600 w-6 h-6" />}
@@ -390,58 +393,16 @@ const savingsAmount = summary.income - summary.expense;
           color="text-indigo-600"
           loading={investmentSummary.loading}
         />
-        
-        <StatCard 
-          title="Total Investments" 
-          value={investmentSummary.count || 0} 
-          icon={<FaChartBar className="text-yellow-600 w-6 h-6" />}
-          color="text-yellow-600"
-          prefix=""
-          loading={investmentSummary.loading}
-        />
-      </div>
 
-      {/* Investment Summary Card */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow-sm p-6 mb-8 border border-blue-200">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-blue-800">Investment Portfolio Summary</h3>
-          <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-            {investmentSummary.count || 0} Investment{investmentSummary.count !== 1 ? 's' : ''}
-          </span>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg p-4 border border-blue-100">
-            <p className="text-sm text-gray-600">Total Invested</p>
-            <p className="text-xl font-bold text-indigo-700">
-              ₨ {(investmentSummary.totalInvested || 0).toLocaleString()}
-            </p>
-          </div>
-          
-          <div className="bg-white rounded-lg p-4 border border-blue-100">
-            <p className="text-sm text-gray-600">Current Value</p>
-            <p className="text-xl font-bold text-purple-700">
-              ₨ {(investmentSummary.totalCurrentValue || 0).toLocaleString()}
-            </p>
-          </div>
-          
-          <div className="bg-white rounded-lg p-4 border border-blue-100">
-            <p className="text-sm text-gray-600">Total P&L</p>
-            <p className={`text-xl font-bold ${
-              (investmentSummary.totalProfitLoss || 0) >= 0 ? 'text-green-700' : 'text-red-700'
-            }`}>
-              {(investmentSummary.totalProfitLoss || 0) >= 0 ? '+' : ''}₨ {(investmentSummary.totalProfitLoss || 0).toLocaleString()}
-            </p>
-          </div>
-          
-          <div className="bg-white rounded-lg p-4 border border-blue-100">
-            <p className="text-sm text-gray-600">Return %</p>
-            <p className={`text-xl font-bold ${
-              (investmentSummary.totalProfitLossPercentage || 0) >= 0 ? 'text-green-700' : 'text-red-700'
-            }`}>
-              {(investmentSummary.totalProfitLossPercentage || 0) >= 0 ? '+' : ''}{(investmentSummary.totalProfitLossPercentage || 0).toFixed(2)}%
-            </p>
-          </div>
+               <StatCard 
+  title="Return %" 
+  value={investmentSummary.totalProfitLossPercentage || 0} 
+  icon={<FaChartBar className="text-yellow-600 w-6 h-6" />}
+  color={investmentSummary.totalProfitLossPercentage >= 0 ? "text-green-600" : "text-red-600"}
+  prefix=""
+  suffix="%"
+  loading={investmentSummary.loading}
+/>
         </div>
         
         {(investmentSummary.totalInvested || 0) > 0 && (
