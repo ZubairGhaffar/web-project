@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { FaUser, FaEnvelope, FaDollarSign, FaCamera, FaSave, FaLock } from 'react-icons/fa';
+import React, { useState, useEffect, useRef } from 'react';
+import { FaUser, FaEnvelope, FaDollarSign, FaCamera, FaSave, FaLock, FaTimes } from 'react-icons/fa';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -17,8 +17,12 @@ const Profile = () => {
     newPassword: '',
     confirmPassword: ''
   });
+  const [profileImage, setProfileImage] = useState(null);
+  const [profileImageUrl, setProfileImageUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const [imageLoading, setImageLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const fileInputRef = useRef(null);
 
   const currencies = [
     { code: 'USD', symbol: '$', name: 'US Dollar' },
@@ -36,6 +40,11 @@ const Profile = () => {
         monthlyIncome: user.monthlyIncome || '',
         currency: user.currency || 'USD'
       });
+      
+      // Set profile image URL if exists
+      if (user.profileImage) {
+        setProfileImageUrl(`http://localhost:5000${user.profileImage}`);
+      }
     }
   }, [user]);
 
@@ -51,6 +60,108 @@ const Profile = () => {
       ...passwordData,
       [e.target.name]: e.target.value
     });
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      setMessage({ 
+        type: 'error', 
+        text: 'Please select a valid image file (JPEG, PNG, GIF, WEBP)' 
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage({ 
+        type: 'error', 
+        text: 'Image size should be less than 5MB' 
+      });
+      return;
+    }
+
+    setImageLoading(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      // Create form data
+      const formData = new FormData();
+      formData.append('profileImage', file);
+
+      // Upload image
+      const response = await axios.put(
+        'http://localhost:5000/api/auth/profile-image',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }
+      );
+
+      if (response.data.success) {
+        setProfileImage(file);
+        setProfileImageUrl(URL.createObjectURL(file));
+        updateUser(response.data.user);
+        setMessage({ 
+          type: 'success', 
+          text: 'Profile image updated successfully!' 
+        });
+      }
+    } catch (error) {
+      console.error('Image upload error:', error);
+      setMessage({ 
+        type: 'error', 
+        text: error.response?.data?.error || 'Failed to upload image' 
+      });
+    } finally {
+      setImageLoading(false);
+    }
+  };
+
+  const removeProfileImage = async () => {
+    if (!confirm('Are you sure you want to remove your profile image?')) {
+      return;
+    }
+
+    setImageLoading(true);
+    try {
+      const response = await axios.delete(
+        'http://localhost:5000/api/auth/profile-image',
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }
+      );
+
+      if (response.data.success) {
+        setProfileImage(null);
+        setProfileImageUrl('');
+        updateUser(response.data.user);
+        setMessage({ 
+          type: 'success', 
+          text: 'Profile image removed successfully!' 
+        });
+      }
+    } catch (error) {
+      setMessage({ 
+        type: 'error', 
+        text: error.response?.data?.error || 'Failed to remove image' 
+      });
+    } finally {
+      setImageLoading(false);
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current.click();
   };
 
   const handleProfileSubmit = async (e) => {
@@ -172,22 +283,69 @@ const Profile = () => {
               <div className="space-y-6">
                 {/* Profile Picture */}
                 <div className="flex items-center space-x-6">
-                  <div className="relative">
-                    <div className="w-24 h-24 bg-gradient-to-br from-primary-500 to-primary-700 rounded-full flex items-center justify-center text-white text-3xl font-bold">
-                      {user?.name?.charAt(0).toUpperCase() || 'U'}
+                  <div className="relative group">
+                    <div className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-primary-500 to-primary-700">
+                      {profileImageUrl ? (
+                        <img 
+                          src={profileImageUrl} 
+                          alt={user?.name} 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="text-white text-3xl font-bold">
+                          {user?.name?.charAt(0).toUpperCase() || 'U'}
+                        </div>
+                      )}
                     </div>
+                    
+                    {/* Upload Button */}
                     <button
                       type="button"
-                      className="absolute bottom-0 right-0 bg-white p-2 rounded-full shadow-md hover:bg-gray-50"
+                      onClick={triggerFileInput}
+                      disabled={imageLoading}
+                      className="absolute bottom-0 right-0 bg-white p-2 rounded-full shadow-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Upload new photo"
                     >
-                      <FaCamera className="w-4 h-4 text-gray-600" />
+                      {imageLoading ? (
+                        <svg className="animate-spin w-4 h-4 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <FaCamera className="w-4 h-4 text-gray-600" />
+                      )}
                     </button>
+
+                    {/* Remove Button (only if image exists) */}
+                    {profileImageUrl && (
+                      <button
+                        type="button"
+                        onClick={removeProfileImage}
+                        disabled={imageLoading}
+                        className="absolute top-0 right-0 bg-white p-2 rounded-full shadow-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Remove photo"
+                      >
+                        <FaTimes className="w-3 h-3 text-red-600" />
+                      </button>
+                    )}
+
+                    {/* Hidden file input */}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleImageUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold">{user?.name}</h3>
                     <p className="text-gray-600">{user?.email}</p>
                     <p className="text-sm text-gray-500 mt-1">
                       Member since {new Date(user?.createdAt).toLocaleDateString()}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-2">
+                      Click camera icon to upload photo (JPEG, PNG, GIF, WEBP, max 5MB)
                     </p>
                   </div>
                 </div>
@@ -275,7 +433,7 @@ const Profile = () => {
                     </button>
                     <button
                       type="submit"
-                      disabled={loading}
+                      disabled={loading || imageLoading}
                       className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                     >
                       {loading ? (

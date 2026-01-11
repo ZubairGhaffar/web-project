@@ -5,6 +5,10 @@ const User = require('../models/User');
 const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
 
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
 // Register user
 router.post('/register', [
   body('name').trim().notEmpty().withMessage('Name is required'),
@@ -264,6 +268,120 @@ router.post('/logout', auth, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadPath = path.join(__dirname, '../uploads/profile-images');
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, req.user._id + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+// File filter
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png|gif|webp/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype);
+  
+  if (mimetype && extname) {
+    return cb(null, true);
+  } else {
+    cb(new Error('Only image files are allowed!'));
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: fileFilter
+});
+
+// Upload/update profile image
+router.put('/profile-image', auth, upload.single('profileImage'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file uploaded' });
+    }
+
+    // Get the relative path to store in database
+    const profileImagePath = '/uploads/profile-images/' + req.file.filename;
+
+    // Remove old image if exists
+    const user = await User.findById(req.user._id);
+    if (user.profileImage) {
+      const oldImagePath = path.join(__dirname, '..', user.profileImage);
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+
+    // Update user profile image
+    user.profileImage = profileImagePath;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Profile image updated successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        monthlyIncome: user.monthlyIncome,
+        currency: user.currency,
+        profileImage: user.profileImage
+      }
+    });
+  } catch (error) {
+    console.error('Error uploading profile image:', error);
+    res.status(500).json({ error: 'Failed to upload profile image' });
+  }
+});
+
+// Remove profile image
+router.delete('/profile-image', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    
+    if (!user.profileImage) {
+      return res.status(400).json({ error: 'No profile image to remove' });
+    }
+
+    // Remove the image file
+    const imagePath = path.join(__dirname, '..', user.profileImage);
+    if (fs.existsSync(imagePath)) {
+      fs.unlinkSync(imagePath);
+    }
+
+    // Clear profile image in database
+    user.profileImage = '';
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Profile image removed successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        monthlyIncome: user.monthlyIncome,
+        currency: user.currency,
+        profileImage: user.profileImage
+      }
+    });
+  } catch (error) {
+    console.error('Error removing profile image:', error);
+    res.status(500).json({ error: 'Failed to remove profile image' });
   }
 });
 

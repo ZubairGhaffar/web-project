@@ -16,7 +16,9 @@
     "express-validator": "^7.3.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^7.5.0",
-    "node-cache": "^5.1.2"
+    "multer": "^2.0.2",
+    "node-cache": "^5.1.2",
+    "react-image-crop": "^11.0.10"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
