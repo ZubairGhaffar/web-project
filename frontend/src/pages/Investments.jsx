@@ -15,7 +15,7 @@ import {
   FaFilter,
   FaSortAmountDown,
   FaSortAmountUp,
-  FaSync // Add refresh icon
+  FaSync 
 } from 'react-icons/fa';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -28,7 +28,7 @@ import AllocationChart from '../components/investments/AllocationChart';
 const Investments = () => {
   const [investments, setInvestments] = useState([]);
   const [analytics, setAnalytics] = useState(null);
-  const [coinPrices, setCoinPrices] = useState({}); // Add coinPrices state
+  const [coinPrices, setCoinPrices] = useState({}); 
   const [loading, setLoading] = useState(true);
   const [priceLoading, setPriceLoading] = useState(false);
   const [error, setError] = useState('');
@@ -39,6 +39,7 @@ const Investments = () => {
   const [sortBy, setSortBy] = useState('purchaseDate');
   const [sortOrder, setSortOrder] = useState('desc');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterCoin, setFilterCoin] = useState('all');
   const [userCurrency, setUserCurrency] = useState('PKR');
   const [exchangeRate, setExchangeRate] = useState(280);
   const { user } = useAuth();
@@ -278,9 +279,24 @@ const Investments = () => {
 
   const enrichedInvestments = getEnrichedInvestments();
 
+  // Get unique coins for filter dropdown
+  const uniqueCoins = [...new Map(
+    enrichedInvestments.map(inv => [inv.coinId, {
+      id: inv.coinId,
+      name: inv.coinName,
+      symbol: inv.symbol
+    }])
+  ).values()];
+
   const filteredAndSortedInvestments = enrichedInvestments
     .filter(inv => {
+      // Coin filter
+      if (filterCoin !== 'all' && inv.coinId !== filterCoin) return false;
+      
+      // Status filter
       if (filterStatus !== 'all' && inv.status !== filterStatus) return false;
+      
+      // Search filter
       if (!searchTerm) return true;
       return (
         inv.coinName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -327,6 +343,29 @@ const Investments = () => {
         return aValue < bValue ? 1 : -1;
       }
     });
+
+  // Calculate coin-specific summary when filtered
+  const getCoinSummary = () => {
+    if (filterCoin === 'all' || filteredAndSortedInvestments.length === 0) return null;
+    
+    const totalInvested = filteredAndSortedInvestments.reduce((sum, inv) => sum + inv.investedAmount, 0);
+    const totalCurrentValue = filteredAndSortedInvestments.reduce((sum, inv) => sum + (inv.currentValueLocal || 0), 0);
+    const totalProfitLoss = filteredAndSortedInvestments.reduce((sum, inv) => sum + (inv.profitLossLocal || 0), 0);
+    const totalProfitLossPercentage = totalInvested > 0 ? (totalProfitLoss / totalInvested) * 100 : 0;
+    const totalQuantity = filteredAndSortedInvestments.reduce((sum, inv) => sum + inv.quantity, 0);
+    
+    return {
+      totalInvested,
+      totalCurrentValue,
+      totalProfitLoss,
+      totalProfitLossPercentage,
+      totalQuantity,
+      coinName: uniqueCoins.find(c => c.id === filterCoin)?.name || 'Unknown Coin',
+      symbol: uniqueCoins.find(c => c.id === filterCoin)?.symbol || 'Unknown'
+    };
+  };
+
+  const coinSummary = getCoinSummary();
 
   if (loading) {
     return (
@@ -488,6 +527,59 @@ const Investments = () => {
         </div>
       )}
 
+      {/* Coin Filter Summary */}
+      {coinSummary && (
+        <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-blue-800">
+                {coinSummary.coinName} ({coinSummary.symbol}) Summary
+              </h3>
+              <p className="text-sm text-blue-600">
+                {filteredAndSortedInvestments.length} investment{filteredAndSortedInvestments.length !== 1 ? 's' : ''} • 
+                Total Quantity: {coinSummary.totalQuantity.toFixed(8)} coins
+              </p>
+            </div>
+            <button
+              onClick={() => setFilterCoin('all')}
+              className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm"
+            >
+              Clear Filter
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-lg p-4 border border-blue-100">
+              <p className="text-sm text-gray-600">Total Invested</p>
+              <p className="text-xl font-bold text-indigo-700">
+                {formatPKR(coinSummary.totalInvested)}
+              </p>
+            </div>
+            
+            <div className="bg-white rounded-lg p-4 border border-blue-100">
+              <p className="text-sm text-gray-600">Current Value</p>
+              <p className="text-xl font-bold text-purple-700">
+                {formatPKR(coinSummary.totalCurrentValue)}
+              </p>
+            </div>
+            
+            <div className="bg-white rounded-lg p-4 border border-blue-100">
+              <p className="text-sm text-gray-600">Total P&L</p>
+              <p className={`text-xl font-bold ${getProfitLossColor(coinSummary.totalProfitLoss)}`}>
+                {formatPKR(coinSummary.totalProfitLoss)}
+              </p>
+            </div>
+            
+            <div className="bg-white rounded-lg p-4 border border-blue-100">
+              <p className="text-sm text-gray-600">Return %</p>
+              <p className={`text-xl font-bold ${getProfitLossColor(coinSummary.totalProfitLossPercentage)}`}>
+                {formatPercentage(coinSummary.totalProfitLossPercentage)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Search and Filters */}
       <div className="mb-6 bg-white rounded-xl shadow-sm p-4">
         <div className="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
@@ -505,6 +597,23 @@ const Investments = () => {
           </div>
           
           <div className="flex space-x-4">
+            {/* Coin Filter */}
+            <div className="relative">
+              <select
+                value={filterCoin}
+                onChange={(e) => setFilterCoin(e.target.value)}
+                className="appearance-none pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="all">All Coins</option>
+                {uniqueCoins.map(coin => (
+                  <option key={coin.id} value={coin.id}>
+                    {coin.name} ({coin.symbol})
+                  </option>
+                ))}
+              </select>
+              <FaCoins className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            </div>
+            
             <div className="relative">
               <select
                 value={filterStatus}
@@ -711,14 +820,14 @@ const Investments = () => {
               <FaCoins className="w-16 h-16 mx-auto" />
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {searchTerm || filterStatus !== 'all' ? 'No matching investments' : 'No investments yet'}
+              {searchTerm || filterStatus !== 'all' || filterCoin !== 'all' ? 'No matching investments' : 'No investments yet'}
             </h3>
             <p className="text-gray-500 mb-4">
-              {searchTerm || filterStatus !== 'all' 
+              {searchTerm || filterStatus !== 'all' || filterCoin !== 'all' 
                 ? 'Try changing your search or filter criteria'
                 : 'Start tracking your cryptocurrency investments to see your portfolio performance'}
             </p>
-            {!searchTerm && filterStatus === 'all' && (
+            {!searchTerm && filterStatus === 'all' && filterCoin === 'all' && (
               <button
                 onClick={() => setShowAddModal(true)}
                 className="text-primary-600 hover:text-primary-700 font-medium"
@@ -729,7 +838,6 @@ const Investments = () => {
           </div>
         )}
       </div>
-
 
       {/* Performance Insights */}
       {analytics && analytics.bestPerformer && analytics.worstPerformer && (

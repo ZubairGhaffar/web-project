@@ -40,6 +40,16 @@ const Dashboard = () => {
     netBalance: 0,
     currency: 'PKR'
   });
+
+  const [budgetsSummary, setBudgetsSummary] = useState({
+  totalBudget: 0,
+  totalSpent: 0,
+  totalRemaining: 0,
+  budgetsCount: 0,
+  overBudgetCount: 0,
+  loading: false,
+  error: null
+});
   
   const [loading, setLoading] = useState(true);
   const { user, refreshUser } = useAuth();
@@ -72,85 +82,146 @@ const Dashboard = () => {
     }
   };
 
-  const fetchInvestmentSummary = async () => {
-    try {
-      setInvestmentSummary(prev => ({ ...prev, loading: true, error: null }));
-      const response = await axios.get('http://localhost:5000/api/investments/summary');
+
+  const fetchBudgetsSummary = async () => {
+  try {
+    setBudgetsSummary(prev => ({ ...prev, loading: true, error: null }));
+    const response = await axios.get('http://localhost:5000/api/budgets');
+    
+    if (response.data) {
+      const budgets = Array.isArray(response.data) ? response.data : [];
+      const totalBudget = budgets.reduce((sum, budget) => sum + (budget.limit || 0), 0);
+      const totalSpent = budgets.reduce((sum, budget) => sum + (budget.spent || 0), 0);
+      const totalRemaining = totalBudget - totalSpent;
+      const overBudgetCount = budgets.filter(budget => 
+        (budget.spent || 0) >= (budget.limit || 0)
+      ).length;
       
-      if (response.data.success) {
-        const summaryData = response.data.summary;
-        
-        setInvestmentSummary({
-          totalInvested: summaryData.totalInvested || 0,
-          totalCurrentValue: summaryData.totalCurrentValue || 0,
-          totalProfitLoss: summaryData.totalProfitLoss || 0,
-          totalProfitLossPercentage: summaryData.totalProfitLossPercentage || 0,
-          count: summaryData.count || 0,
-          loading: false,
-          error: null
-        });
-        
-        const coinIds = summaryData?.coinBreakdown?.map(c => c.coinId) || [];
-        if (coinIds.length > 0) {
+      setBudgetsSummary({
+        totalBudget,
+        totalSpent,
+        totalRemaining,
+        budgetsCount: budgets.length,
+        overBudgetCount,
+        loading: false,
+        error: null
+      });
+    } else {
+      setBudgetsSummary(prev => ({
+        ...prev,
+        loading: false,
+        error: 'No budget data received'
+      }));
+    }
+  } catch (error) {
+    console.error('Error fetching budgets:', error);
+    setBudgetsSummary(prev => ({
+      ...prev,
+      loading: false,
+      error: error.message || 'Failed to fetch budget data'
+    }));
+  }
+};
+
+const fetchInvestmentSummary = async () => {
+  try {
+    setInvestmentSummary(prev => ({ ...prev, loading: true, error: null }));
+    
+    // Change this line: Use the same endpoint as investment.jsx
+    const response = await axios.get('http://localhost:5000/api/investments');
+    
+    if (response.data.success) {
+      const investments = response.data.investments || [];
+      const analytics = response.data.analytics || {};
+      const exchangeRate = response.data.exchangeRate || 280;
+      
+      // Get data from analytics object
+      const totalInvested = analytics.totalInvested || 0;
+      const totalCurrentValue = analytics.totalCurrentValue || 0;
+      const totalProfitLoss = analytics.totalProfitLoss || 0;
+      const totalProfitLossPercentage = analytics.totalProfitLossPercentage || 0;
+      const count = analytics.count || 0;
+      
+      setInvestmentSummary({
+        totalInvested,
+        totalCurrentValue,
+        totalProfitLoss,
+        totalProfitLossPercentage,
+        count,
+        exchangeRate,
+        loading: false,
+        error: null
+      });
+      
+      // Optional: Fetch batch prices if needed
+      const coinIds = analytics?.coinBreakdown?.map(c => c.coinId) || [];
+      if (coinIds.length > 0) {
+        try {
           await axios.post('http://localhost:5000/api/investments/prices/batch', {
             coinIds
           });
+        } catch (priceError) {
+          console.error('Error fetching batch prices:', priceError);
         }
-      } else {
-        setInvestmentSummary(prev => ({
-          ...prev,
-          loading: false,
-          error: response.data.error || 'Failed to fetch investment data'
-        }));
       }
-    } catch (error) {
-      console.error('Error fetching investment summary:', error);
+    } else {
       setInvestmentSummary(prev => ({
         ...prev,
         loading: false,
-        error: error.message || 'Failed to fetch investment data'
+        error: response.data.error || 'Failed to fetch investment data'
       }));
     }
-  };
+  } catch (error) {
+    console.error('Error fetching investment summary:', error);
+    setInvestmentSummary(prev => ({
+      ...prev,
+      loading: false,
+      error: error.message || 'Failed to fetch investment data'
+    }));
+  }
+};
 
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      
-      // Fetch all data in parallel including user data
-      const [userRes, summaryRes, categoriesRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/auth/me', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        }),
-        axios.get('http://localhost:5000/api/transactions/summary'),
-        axios.get('http://localhost:5000/api/transactions/categories?type=expense')
-      ]);
+const fetchDashboardData = async () => {
+  try {
+    setLoading(true);
+    
+    // Fetch all data in parallel including user data
+    const [userRes, summaryRes, categoriesRes] = await Promise.all([
+      axios.get('http://localhost:5000/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      }),
+      axios.get('http://localhost:5000/api/transactions/summary'),
+      axios.get('http://localhost:5000/api/transactions/categories?type=expense')
+    ]);
 
-      console.log('User response:', userRes.data); // Debug log
-      console.log('User netBalance from API:', userRes.data.user?.netBalance); // Debug log
+    console.log('User response:', userRes.data);
+    console.log('User netBalance from API:', userRes.data.user?.netBalance);
 
-      // Update user data with netBalance from database
-      if (userRes.data.user) {
-        setUserData({
-          monthlyIncome: userRes.data.user.monthlyIncome || 0,
-          netBalance: userRes.data.user.netBalance || 0,
-          currency: userRes.data.user.currency || 'PKR'
-        });
-      }
-
-      setSummary(summaryRes.data);
-      
-      // Fetch investment summary separately
-      await fetchInvestmentSummary();
-      
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setLoading(false);
+    // Update user data with netBalance from database
+    if (userRes.data.user) {
+      setUserData({
+        monthlyIncome: userRes.data.user.monthlyIncome || 0,
+        netBalance: userRes.data.user.netBalance || 0,
+        currency: userRes.data.user.currency || 'PKR'
+      });
     }
-  };
+
+    setSummary(summaryRes.data);
+    
+    // Fetch investment summary and budgets summary in parallel
+    await Promise.all([
+      fetchInvestmentSummary(),
+      fetchBudgetsSummary()
+    ]);
+    
+    setLoading(false);
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    setLoading(false);
+  }
+};
 
   const refreshData = async () => {
     await fetchDashboardData();
@@ -208,10 +279,12 @@ const Dashboard = () => {
     value: item.total
   })) || [];
 
-  // Calculate savings rate based on user's net balance
-  const savingsRate = summary.income > 0 
-    ? (((userData.netBalance || 0) / summary.income) * 100).toFixed(1)
-    : 0;
+const savingsRate = summary.income > 0 
+  ? (((summary.income - summary.expense) / summary.income) * 100).toFixed(1)
+  : 0;
+
+// Also add this to display actual savings amount
+const savingsAmount = summary.income - summary.expense;
 
   return (
     <div>
@@ -257,13 +330,13 @@ const Dashboard = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard 
-          title="Total Balance" 
-          value={userData.netBalance || 0}
-          icon={<FaDollarSign className="text-blue-600 w-6 h-6" />}
-          color="text-blue-600"
-          trend={summary.income > 0 ? ((userData.netBalance || 0) / summary.income * 100).toFixed(0) : 0}
-        />
+       <StatCard 
+  title="Total Balance" 
+  value={userData.netBalance || 0}
+  icon={<FaDollarSign className="text-blue-600 w-6 h-6" />}
+  color="text-blue-600"
+  trend={summary.income > 0 ? ((userData.netBalance || 0) / summary.income * 100).toFixed(0) : 0}
+/>
         
         <StatCard 
           title="Total Income" 
@@ -281,15 +354,13 @@ const Dashboard = () => {
           trend={-5}
         />
         
-        <StatCard 
-          title="Savings Rate" 
-          value={savingsRate} 
-          icon={<FaChartPie className="text-purple-600 w-6 h-6" />}
-          color="text-purple-600"
-          trend={3}
-          prefix=""
-          suffix="%"
-        />
+<StatCard 
+  title="Total Savings" 
+  value={savingsAmount} 
+  icon={<FaChartLine className={`${savingsAmount >= 0 ? "text-green-600" : "text-red-600"} w-6 h-6`} />}
+  color={savingsAmount >= 0 ? "text-green-600" : "text-red-600"}
+  trend={parseFloat(savingsRate)}
+/>
         
         <StatCard 
           title="Investment Value" 
@@ -481,50 +552,135 @@ const Dashboard = () => {
       {/* Combined Financial Status */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Budget Status */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold mb-4">Budget Status</h3>
-          <div className="space-y-4">
-            {userData.monthlyIncome > 0 && (
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-600">Monthly Spending</span>
-                  <span className="text-gray-600">
-                    ₨ {(summary.expense || 0).toFixed(2)} / ₨ {(userData.monthlyIncome || 0).toLocaleString()}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full transition-all duration-500 ${
-                      ((summary.expense || 0) / (userData.monthlyIncome || 1)) > 0.9 
-                        ? 'bg-red-500' 
-                        : ((summary.expense || 0) / (userData.monthlyIncome || 1)) > 0.7 
-                          ? 'bg-yellow-500' 
-                          : 'bg-green-500'
-                    }`}
-                    style={{ 
-                      width: `${Math.min(((summary.expense || 0) / (userData.monthlyIncome || 1)) * 100, 100)}%` 
-                    }}
-                  ></div>
-                </div>
-                <p className="text-sm text-gray-500 mt-1">
-                  {(((summary.expense || 0) / (userData.monthlyIncome || 1)) * 100).toFixed(1)}% of monthly income spent
-                </p>
-              </div>
-            )}
-            
-            {(userData.netBalance || 0) < 0 && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-600 font-medium flex items-center">
-                  <FaArrowDown className="mr-2" />
-                  ⚠️ You're spending more than you earn
-                </p>
-                <p className="text-red-500 text-sm mt-1">
-                  Consider reviewing your expenses or increasing your income
-                </p>
-              </div>
-            )}
+       {/* Budget Status */}
+<div className="bg-white rounded-xl shadow-sm p-6">
+  <h3 className="text-lg font-semibold mb-4">Budget Status</h3>
+  <div className="space-y-4">
+    {/* Budget Summary */}
+    {budgetsSummary.budgetsCount > 0 ? (
+      <>
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">Total Budget</p>
+            <p className="text-xl font-bold text-blue-600">
+              ₨ {budgetsSummary.totalBudget.toLocaleString()}
+            </p>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">Spent</p>
+            <p className="text-xl font-bold text-red-600">
+              ₨ {budgetsSummary.totalSpent.toLocaleString()}
+            </p>
           </div>
         </div>
+        
+        <div>
+          <div className="flex justify-between text-sm mb-1">
+            <span className="text-gray-600">Budget Utilization</span>
+            <span className={`font-medium ${
+              budgetsSummary.totalRemaining >= 0 ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {budgetsSummary.totalBudget > 0 
+                ? ((budgetsSummary.totalSpent / budgetsSummary.totalBudget) * 100).toFixed(1)
+                : 0
+              }% used
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className={`h-2 rounded-full transition-all duration-500 ${
+                budgetsSummary.totalBudget > 0 && 
+                (budgetsSummary.totalSpent / budgetsSummary.totalBudget) > 0.9 
+                  ? 'bg-red-500' 
+                  : budgetsSummary.totalBudget > 0 && 
+                    (budgetsSummary.totalSpent / budgetsSummary.totalBudget) > 0.7 
+                    ? 'bg-yellow-500' 
+                    : 'bg-green-500'
+              }`}
+              style={{ 
+                width: budgetsSummary.totalBudget > 0 
+                  ? `${Math.min((budgetsSummary.totalSpent / budgetsSummary.totalBudget) * 100, 100)}%` 
+                  : '0%'
+              }}
+            ></div>
+          </div>
+          <div className="flex justify-between text-sm mt-1">
+            <span className="text-gray-500">
+              {budgetsSummary.budgetsCount} budget{budgetsSummary.budgetsCount !== 1 ? 's' : ''}
+            </span>
+            <span className="text-gray-500">
+              {budgetsSummary.overBudgetCount} over budget
+            </span>
+          </div>
+        </div>
+        
+        {budgetsSummary.totalRemaining >= 0 ? (
+          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-green-700 text-sm">
+              💰 Budget Balance: ₨ {budgetsSummary.totalRemaining.toLocaleString()} remaining
+            </p>
+          </div>
+        ) : (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 text-sm">
+              ⚠️ Over budget by ₨ {Math.abs(budgetsSummary.totalRemaining).toLocaleString()}
+            </p>
+          </div>
+        )}
+      </>
+    ) : (
+      <div className="text-center py-4">
+        <p className="text-gray-500 mb-2">No budgets created yet</p>
+        <p className="text-sm text-gray-400">
+          Create budgets to track your spending limits
+        </p>
+      </div>
+    )}
+    
+    {/* Income vs Expense */}
+    {userData.monthlyIncome > 0 && (
+      <>
+        <div className="pt-4 border-t border-gray-200">
+          <div className="flex justify-between text-sm mb-1">
+            <span className="text-gray-600">Monthly Spending</span>
+            <span className="text-gray-600">
+              ₨ {(summary.expense || 0).toLocaleString()} / ₨ {(userData.monthlyIncome || 0).toLocaleString()}
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className={`h-2 rounded-full transition-all duration-500 ${
+                ((summary.expense || 0) / (userData.monthlyIncome || 1)) > 0.9 
+                  ? 'bg-red-500' 
+                  : ((summary.expense || 0) / (userData.monthlyIncome || 1)) > 0.7 
+                    ? 'bg-yellow-500' 
+                    : 'bg-green-500'
+              }`}
+              style={{ 
+                width: `${Math.min(((summary.expense || 0) / (userData.monthlyIncome || 1)) * 100, 100)}%` 
+              }}
+            ></div>
+          </div>
+          <p className="text-sm text-gray-500 mt-1">
+            {(((summary.expense || 0) / (userData.monthlyIncome || 1)) * 100).toFixed(1)}% of monthly income spent
+          </p>
+        </div>
+      </>
+    )}
+    
+    {(userData.netBalance || 0) < 0 && (
+      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+        <p className="text-red-600 font-medium flex items-center">
+          <FaArrowDown className="mr-2" />
+          ⚠️ You're spending more than you earn
+        </p>
+        <p className="text-red-500 text-sm mt-1">
+          Consider reviewing your expenses or increasing your income
+        </p>
+      </div>
+    )}
+  </div>
+</div>
 
         {/* Net Worth Summary */}
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl shadow-sm p-6 border border-green-200">

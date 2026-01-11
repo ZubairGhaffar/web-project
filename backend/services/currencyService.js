@@ -69,37 +69,7 @@ class CurrencyService {
     }
   }
 
-  async convertToUSD(amount, currency) {
-    if (currency === 'USD') return amount;
-    
-    const rates = await this.getExchangeRates();
-    const rate = rates[currency];
-    
-    if (!rate) {
-      console.warn(`Unsupported currency: ${currency}, using fallback rate`);
-      // Estimate conversion (1 USD = 280 PKR)
-      return currency === 'PKR' ? amount / 280 : amount;
-    }
-    
-    // Convert to USD: amount / exchange_rate
-    return amount / rate;
-  }
 
-  async convertFromUSD(amount, currency) {
-    if (currency === 'USD') return amount;
-    
-    const rates = await this.getExchangeRates();
-    const rate = rates[currency];
-    
-    if (!rate) {
-      console.warn(`Unsupported currency: ${currency}, using fallback rate`);
-      // Estimate conversion (1 USD = 280 PKR)
-      return currency === 'PKR' ? amount * 280 : amount;
-    }
-    
-    // Convert from USD: amount * exchange_rate
-    return amount * rate;
-  }
 
   async convert(amount, fromCurrency, toCurrency) {
     if (fromCurrency === toCurrency) return amount;
@@ -125,10 +95,10 @@ class CurrencyService {
     return usdAmount * toRate;
   }
 
-  async getSupportedCurrencies() {
-    const rates = await this.getExchangeRates();
-    return Object.keys(rates);
-  }
+  // async getSupportedCurrencies() {
+  //   const rates = await this.getExchangeRates();
+  //   return Object.keys(rates);
+  // }
 
   // Get specific rate - FIXED THIS METHOD
   async getRate(fromCurrency, toCurrency) {
@@ -153,16 +123,6 @@ class CurrencyService {
     return toRate / fromRate;
   }
 
-  // Simple method to get USD to PKR rate specifically
-  async getUSDtoPKR() {
-    try {
-      const rates = await this.getExchangeRates();
-      return rates.PKR || 280; // Fallback to 280 if not available
-    } catch (error) {
-      console.error('Error getting USD to PKR rate:', error);
-      return 280;
-    }
-  }
 }
 
 module.exports = new CurrencyService();

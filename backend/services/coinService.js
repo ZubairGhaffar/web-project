@@ -306,16 +306,7 @@ class CoinService {
     };
   }
 
-  async refreshCache() {
-    console.log('Refreshing cache...');
-    const keys = this.cache.keys();
-    
-    for (const key of keys) {
-      if (key.startsWith('prices_')) {
-        this.cache.del(key);
-      }
-    }
-  }
+
 
   async getHistoricalData(coinId, days = 30) {
     try {

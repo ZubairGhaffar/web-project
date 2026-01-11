@@ -4,6 +4,7 @@ import { FaBell, FaSearch, FaUserCircle, FaSignOutAlt, FaCog } from 'react-icons
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 
+
 const Header = () => {
   const [notifications] = useState([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -22,14 +23,8 @@ const Header = () => {
       <div className="flex items-center justify-between">
         {/* Left Section - Search */}
         <div className="flex-1 max-w-xl">
-          <div className="relative">
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search transactions, budgets..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-          </div>
+           
+   
         </div>
 
         {/* Right Section */}

@@ -3,12 +3,10 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
-import { FaDownload, FaFilter, FaFilePdf, FaFileExcel } from 'react-icons/fa';
+import { FaDownload, FaFilter } from 'react-icons/fa';
 import DatePicker from 'react-datepicker';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-import { saveAs } from 'file-saver';
-import * as XLSX from 'xlsx-js-style';
 
 const Reports = () => {
   const [reportData, setReportData] = useState({
@@ -26,7 +24,6 @@ const Reports = () => {
     endDate: new Date()
   });
   const [loading, setLoading] = useState(false);
-  const [exportFormat, setExportFormat] = useState('excel');
   const { user } = useAuth();
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FF6B6B', '#4ECDC4'];
@@ -82,15 +79,6 @@ const Reports = () => {
     }).format(amount);
   };
 
-  // Export to Excel
-const exportToExcel = () => {
-  alert('Excel export requires server-side implementation. Please use CSV export instead.');
-};
-
-const exportToPDF = () => {
-  alert('PDF export requires server-side implementation. Please use CSV export instead.');
-};
-
   // Export to CSV
   const exportToCSV = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
@@ -98,53 +86,57 @@ const exportToPDF = () => {
     // Summary section
     csvContent += "Financial Report Summary\r\n";
     csvContent += `Generated on:,${new Date().toLocaleDateString('en-PK')}\r\n`;
-    csvContent += `Report Period:,${filter.startDate.toLocaleDateString('en-PK')} to ${filter.endDate.toLocaleDateString('en-PK')}\r\n\r\n`;
+    csvContent += `Report Period:,${filter.startDate.toLocaleDateString('en-PK')} to ${filter.endDate.toLocaleDateString('en-PK')}\r\n`;
+    csvContent += `User:,${user?.name || 'N/A'}\r\n\r\n`;
     
     csvContent += "Metric,Amount (PKR)\r\n";
     csvContent += `Total Income,${reportData.income}\r\n`;
     csvContent += `Total Expenses,${reportData.expense}\r\n`;
     csvContent += `Net Balance,${reportData.netBalance}\r\n`;
-    csvContent += `Savings Rate,${reportData.analytics?.savingsRate?.toFixed(1) || 0}%\r\n\r\n`;
+    csvContent += `Savings Rate,${reportData.analytics?.savingsRate?.toFixed(1) || 0}%\r\n`;
+    csvContent += `Expense to Income Ratio,${reportData.analytics?.expenseToIncomeRatio?.toFixed(1) || 0}%\r\n\r\n`;
     
     // Top categories
     csvContent += "Top Expense Categories\r\n";
-    csvContent += "Category,Amount (PKR),Percentage\r\n";
+    csvContent += "Category,Amount (PKR),Percentage,Transaction Count\r\n";
     
     reportData.topExpenses?.forEach(cat => {
       const percentage = reportData.expense > 0 ? (cat.total / reportData.expense * 100).toFixed(1) : 0;
-      csvContent += `${cat._id},${cat.total},${percentage}%\r\n`;
+      csvContent += `${cat._id},${cat.total},${percentage}%,${cat.count}\r\n`;
     });
     
     csvContent += "\r\nMonthly Trends\r\n";
-    csvContent += "Month,Income (PKR),Expenses (PKR),Net Balance (PKR)\r\n";
+    csvContent += "Month,Income (PKR),Expenses (PKR),Net Balance (PKR),Savings Rate (%)\r\n";
     
     monthlySummary.forEach(item => {
-      csvContent += `${item.year}-${item.month.toString().padStart(2, '0')},${item.income},${item.expense},${item.netBalance}\r\n`;
+      const savingsRate = item.income > 0 ? ((item.netBalance / item.income) * 100).toFixed(1) : 0;
+      csvContent += `${item.year}-${item.month.toString().padStart(2, '0')},${item.income},${item.expense},${item.netBalance},${savingsRate}\r\n`;
+    });
+    
+    // Recent transactions
+    csvContent += "\r\nRecent Transactions\r\n";
+    csvContent += "Date,Type,Category,Description,Amount (PKR)\r\n";
+    
+    reportData.recentTransactions?.forEach(transaction => {
+      csvContent += `${new Date(transaction.date).toLocaleDateString('en-PK')},${transaction.type},${transaction.category},${transaction.title},${transaction.amount}\r\n`;
+    });
+    
+    // Financial insights
+    csvContent += "\r\nFinancial Insights\r\n";
+    csvContent += "Type,Title,Message\r\n";
+    
+    const insights = getFinancialInsights();
+    insights.forEach(insight => {
+      csvContent += `${insight.type},${insight.title},"${insight.message}"\r\n`;
     });
     
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Financial_Report_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `Financial_Report_${user?.name || 'User'}_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const handleExport = () => {
-    switch (exportFormat) {
-      case 'excel':
-        exportToExcel();
-        break;
-      case 'pdf':
-        exportToPDF();
-        break;
-      case 'csv':
-        exportToCSV();
-        break;
-      default:
-        exportToExcel();
-    }
   };
 
   // Get insights based on data
@@ -225,24 +217,13 @@ const exportToPDF = () => {
           <p className="text-gray-600">Comprehensive financial analysis and insights</p>
         </div>
         <div className="flex items-center space-x-3">
-          <select
-            value={exportFormat}
-            onChange={(e) => setExportFormat(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          >
-            <option value="excel">Excel (.xlsx)</option>
-            <option value="pdf">PDF</option>
-            <option value="csv">CSV</option>
-          </select>
           <button
-            onClick={handleExport}
+            onClick={exportToCSV}
             disabled={loading}
             className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 flex items-center shadow-sm"
           >
-            {exportFormat === 'excel' && <FaFileExcel className="mr-2" />}
-            {exportFormat === 'pdf' && <FaFilePdf className="mr-2" />}
-            {exportFormat === 'csv' && <FaDownload className="mr-2" />}
-            Export Report
+            <FaDownload className="mr-2" />
+            Export CSV Report
           </button>
         </div>
       </div>
@@ -601,12 +582,11 @@ const exportToPDF = () => {
             </ul>
           </div>
         </div>
-      </div>
-
-      {/* Installation instructions for export libraries */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-700">
-        <p className="font-medium mb-1">Note: Export functionality requires additional libraries</p>
-        <p>Install with: <code className="bg-yellow-100 px-2 py-1 rounded">npm install file-saver xlsx-js-style jspdf jspdf-autotable</code></p>
+        <div className="mt-4 pt-4 border-t border-indigo-200">
+          <p className="text-sm text-indigo-600">
+            Click "Export CSV Report" to download a detailed CSV file containing all the data shown in this report.
+          </p>
+        </div>
       </div>
     </div>
   );
